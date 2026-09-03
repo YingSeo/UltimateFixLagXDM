@@ -1,142 +1,56 @@
-local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
-local RunService = game:GetService("RunService")
-local Workspace = game:GetService("Workspace")
-local player = Players.LocalPlayer
 
--- 1) Giảm chất lượng render tổng thể
-pcall(function()
-    settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
-end)
+-- 1) Xoá sương mù (fog) hoàn toàn, và tự khôi phục nếu game set lại
+local function removeFog()
+    Lighting.FogEnd = 1e10
+    Lighting.FogStart = 1e10
+    Lighting.FogColor = Color3.new(1, 1, 1)
+end
+removeFog()
+Lighting:GetPropertyChangedSignal("FogEnd"):Connect(removeFog)
+Lighting:GetPropertyChangedSignal("FogStart"):Connect(removeFog)
+Lighting:GetPropertyChangedSignal("FogColor"):Connect(removeFog)
 
--- 2) Tắt bầu trời / sao / sương mù / ánh sáng nặng
-pcall(function()
+-- 2) Fullbright (xoá bóng tối/ánh sáng động)
+local function doFullbright()
+    Lighting.Ambient = Color3.new(1, 1, 1)
+    Lighting.OutdoorAmbient = Color3.new(1, 1, 1)
+    Lighting.ColorShift_Bottom = Color3.new(1, 1, 1)
+    Lighting.ColorShift_Top = Color3.new(1, 1, 1)
+    Lighting.Brightness = 2
+    Lighting.ClockTime = 14 -- giữ giờ ban ngày cố định, tránh hiệu ứng đêm/hoàng hôn nặng
     Lighting.GlobalShadows = false
-    Lighting.FogEnd = 1e9
+    Lighting.ShadowSoftness = 0
+end
+doFullbright()
+Lighting.LightingChanged:Connect(doFullbright)
+
+-- 3) Xoá các PostEffect gây tốn GPU nặng nhất (Bloom, Blur, ColorCorrection, SunRays, DepthOfField)
+local function stripPostEffects()
     for _, obj in ipairs(Lighting:GetChildren()) do
-        if obj:IsA("Sky") or obj:IsA("Atmosphere") then
-            obj:Destroy()
-        end
-    end
-end)
-
--- 3) Ẩn địa hình (Terrain) - set trong suốt thay vì xoá hẳn (xoá hẳn dễ gây lỗi vật lý/rớt xuống bản đồ)
-pcall(function()
-    Workspace.Terrain.WaterTransparency = 1
-    Workspace.Terrain.WaterWaveSize = 0
-    Workspace.Terrain.WaterWaveSpeed = 0
-    Workspace.Terrain:Clear() -- xoá phần địa hình dựng bằng Terrain (nếu map dùng Terrain thật)
-end)
-
--- 4) Xoá / tắt hiệu ứng (Particle, Beam, Trail, Fire, Smoke, Sparkles) toàn map
-local function stripEffects(root)
-    for _, obj in ipairs(root:GetDescendants()) do
-        if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam")
-        or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles")
-        or obj:IsA("Explosion") then
+        if obj:IsA("BloomEffect")
+        or obj:IsA("BlurEffect")
+        or obj:IsA("SunRaysEffect")
+        or obj:IsA("DepthOfFieldEffect")
+        or obj:IsA("ColorCorrectionEffect") then
             pcall(function() obj.Enabled = false end)
         end
     end
 end
-stripEffects(Workspace)
-
-Workspace.DescendantAdded:Connect(function(obj)
-    if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam")
-    or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
-        pcall(function() obj.Enabled = false end)
-    end
+stripPostEffects()
+Lighting.ChildAdded:Connect(function()
+    task.wait(0.1)
+    stripPostEffects()
 end)
 
--- 5) Xoá texture nhân vật / mob / npc nhưng giữ nguyên model (đổi vật liệu về Plastic trơn, ẩn Decal)
-local function stripTextures(character)
-    if not character then return end
-    for _, part in ipairs(character:GetDescendants()) do
-        if part:IsA("BasePart") then
-            pcall(function()
-                part.Material = Enum.Material.Plastic
-            end)
-        elseif part:IsA("Decal") or part:IsA("Texture") then
-            pcall(function() part.Transparency = 1 end)
-        end
-    end
-end
-
--- Áp dụng cho toàn bộ NPC/mob hiện có trong map
-for _, model in ipairs(Workspace:GetDescendants()) do
-    if model:IsA("Model") and model:FindFirstChildOfClass("Humanoid") then
-        stripTextures(model)
-    end
-end
-
--- Tự động áp dụng cho NPC/mob mới xuất hiện (ví dụ khi farm sea event)
-Workspace.DescendantAdded:Connect(function(obj)
-    if obj:IsA("Model") and obj ~= player.Character then
-        task.wait(0.2)
-        if obj:FindFirstChildOfClass("Humanoid") then
-            stripTextures(obj)
-        end
-    end
-end)
-
--- 6) Ẩn người chơi khác xung quanh (không ảnh hưởng gameplay, chỉ ẩn model)
-local function hideOtherPlayers()
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= player and p.Character then
-            for _, part in ipairs(p.Character:GetDescendants()) do
-                if part:IsA("BasePart") or part:IsA("Decal") then
-                    pcall(function() part.Transparency = 1 end)
-                end
-            end
-        end
-    end
-end
-hideOtherPlayers()
-
-Players.PlayerAdded:Connect(function(p)
-    p.CharacterAdded:Connect(function(char)
-        task.wait(0.5)
-        for _, part in ipairs(char:GetDescendants()) do
-            if part:IsA("BasePart") or part:IsA("Decal") then
-                pcall(function() part.Transparency = 1 end)
-            end
-        end
-    end)
-end)
-
--- 7) Unlock FPS cap (chỉ hoạt động nếu executor hỗ trợ setfpscap, đây KHÔNG phải hack, chỉ mở giới hạn client)
-pcall(function()
-    if setfpscap then
-        setfpscap(360)
-    end
-end)
-
--- 8) FPS Counter hiển thị góc màn hình
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "FPSCounterUI"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = game:GetService("CoreGui")
-
-local Label = Instance.new("TextLabel")
-Label.Size = UDim2.new(0, 120, 0, 30)
-Label.Position = UDim2.new(0, 10, 0, 10)
-Label.BackgroundTransparency = 0.4
-Label.BackgroundColor3 = Color3.new(0, 0, 0)
-Label.TextColor3 = Color3.new(0, 1, 0)
-Label.Font = Enum.Font.GothamBold
-Label.TextSize = 16
-Label.Text = "FPS: --"
-Label.Parent = ScreenGui
-
-local frames = 0
-local lastTime = tick()
-RunService.RenderStepped:Connect(function()
-    frames = frames + 1
-    local now = tick()
-    if now - lastTime >= 1 then
-        Label.Text = "FPS: " .. frames
-        frames = 0
-        lastTime = now
-    end
-end)
-
-print("[Optimizer] Đã tối ưu xong: ẩn hiệu ứng, texture, người chơi, mở khoá FPS cap, hiện FPS counter.")
+-- 4) Thông báo
+game.StarterGui:SetCore("SendNotification", {
+    Title = "Optimizer",
+    Text = "Đã xoá sương mù & bật fullbright",
+    Duration = 2
+})
+game.StarterGui:SetCore("SendNotification", {
+    Title = "Optimizer",
+    Text = "Đã tắt hiệu ứng hậu kỳ (Bloom/Blur/DOF...)",
+    Duration = 3
+})
