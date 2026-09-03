@@ -82,49 +82,18 @@ end)
 pcall(function()
     Lighting.GlobalShadows = false
     Lighting.FogEnd = 999999
-    Lighting.Ambient = Color3.fromRGB(0, 0, 0)
-    Lighting.OutdoorAmbient = Color3.fromRGB(0, 0, 0)
+    Lighting.Ambient = Color3.fromRGB(180, 180, 180)
+    Lighting.OutdoorAmbient = Color3.fromRGB(180, 180, 180)
     for _, v in pairs(Lighting:GetChildren()) do
-        v:Destroy()
+        if v:IsA("PostEffect") or v:IsA("Atmosphere") or v:IsA("Sky") or v:IsA("Clouds") then
+            v:Destroy()
+        end
     end
-    local Sky = Instance.new("Sky", Lighting)
-    Sky.SkyboxBk, Sky.SkyboxDn, Sky.SkyboxFt, Sky.SkyboxLf, Sky.SkyboxRt, Sky.SkyboxUp = "rbxassetid://0", "rbxassetid://0", "rbxassetid://0", "rbxassetid://0", "rbxassetid://0", "rbxassetid://0"
 end)
 
 pcall(function()
     local Terrain = Workspace:FindFirstChildOfClass("Terrain")
     if Terrain then Terrain:Clear() end
-end)
-
-local function RemoveColorAndVFX(obj)
-    pcall(function()
-        if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") or obj:IsA("Highlight") or obj:IsA("Explosion") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") or obj:IsA("Light") or obj:IsA("PostEffect") then
-            obj:Destroy()
-        elseif obj:IsA("Decal") or obj:IsA("Texture") then
-            obj:Destroy()
-        end
-    end)
-end
-
-local function CleanPlayer(char)
-    if not char or char == LP.Character then return end
-    task.delay(0.3, function()
-        pcall(function()
-            for _, obj in pairs(char:GetDescendants()) do
-                RemoveColorAndVFX(obj)
-            end
-        end)
-    end)
-end
-
-for _, p in pairs(Players:GetPlayers()) do
-    if p ~= LP then
-        if p.Character then CleanPlayer(p.Character) end
-        p.CharacterAdded:Connect(CleanPlayer)
-    end
-end
-Players.PlayerAdded:Connect(function(p)
-    p.CharacterAdded:Connect(CleanPlayer)
 end)
 
 local function ProcessObject(v)
@@ -135,24 +104,13 @@ local function ProcessObject(v)
 
         local model = v:FindFirstAncestorOfClass("Model")
         if model and model:FindFirstChildOfClass("Humanoid") then
-            local isPlayer = false
-            for _, p in ipairs(Players:GetPlayers()) do
-                if p.Character == model then
-                    isPlayer = true
-                    break
-                end
-            end
-            if not isPlayer then
-                return
-            end
+            return
         end
 
         local vName = v.Name:lower()
         
         if vName:find("boat") or vName:find("ship") or vName:find("sloop") or vName:find("galleon") or
-           vName:find("seabeast") or vName:find("sea beast") or vName:find("terrorshark") or 
-           vName:find("terror shark") or vName:find("shark") or vName:find("piranha") or 
-           vName:find("seamonster") or vName:find("sea monster") or vName:find("ghost ship") or vName:find("ghostship") or
+           vName:find("ghost ship") or vName:find("ghostship") or
            vName:find("prehistoric") or vName:find("kitsune") or vName:find("frozen") or vName:find("dimension") then
             v:Destroy()
             return
