@@ -1,164 +1,142 @@
-repeat task.wait() until game:IsLoaded()
-
 local Players = game:GetService("Players")
-local LP = Players.LocalPlayer
-local Workspace = game:GetService("Workspace")
 local Lighting = game:GetService("Lighting")
 local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local player = Players.LocalPlayer
 
-repeat task.wait(0.5) until LP.Team ~= nil and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-
+-- 1) Giảm chất lượng render tổng thể
 pcall(function()
-    if setfpscap then setfpscap(999) end
-    local UserGameSettings = UserSettings():GetService("UserGameSettings")
-    UserGameSettings.SavedQualityLevel = Enum.SavedQualityLevel.QualityLevel1
-    UserGameSettings.Shadows = false
+    settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
 end)
 
-local CoreGui = game:GetService("CoreGui")
-if CoreGui:FindFirstChild("Modern_FPS_UI") then
-    CoreGui.Modern_FPS_UI:Destroy()
-end
-
-local FPSGui = Instance.new("ScreenGui", CoreGui)
-FPSGui.Name = "Modern_FPS_UI"
-FPSGui.ResetOnSpawn = false
-FPSGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-local MainFrame = Instance.new("Frame", FPSGui)
-MainFrame.Size = UDim2.new(0, 130, 0, 38)
-MainFrame.Position = UDim2.new(0.83, 0, 0.02, 0)
-MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-MainFrame.BackgroundTransparency = 0.2
-MainFrame.BorderSizePixel = 0
-
-local UICorner = Instance.new("UICorner", MainFrame)
-UICorner.CornerRadius = UDim.new(0, 12)
-
-local UIStroke = Instance.new("UIStroke", MainFrame)
-UIStroke.Color = Color3.fromRGB(70, 70, 90)
-UIStroke.Thickness = 1.2
-UIStroke.Transparency = 0.3
-
-local Dot = Instance.new("Frame", MainFrame)
-Dot.Size = UDim2.new(0, 8, 0, 8)
-Dot.Position = UDim2.new(0, 12, 0.5, -4)
-Dot.BackgroundColor3 = Color3.fromRGB(0, 255, 120)
-Dot.BorderSizePixel = 0
-local DotCorner = Instance.new("UICorner", Dot)
-DotCorner.CornerRadius = UDim.new(1, 0)
-
-local FPSLabel = Instance.new("TextLabel", MainFrame)
-FPSLabel.Size = UDim2.new(1, -28, 1, 0)
-FPSLabel.Position = UDim2.new(0, 26, 0, 0)
-FPSLabel.BackgroundTransparency = 1
-FPSLabel.TextColor3 = Color3.fromRGB(240, 240, 250)
-FPSLabel.Font = Enum.Font.GothamBold
-FPSLabel.TextSize = 13
-FPSLabel.TextXAlignment = Enum.TextXAlignment.Left
-FPSLabel.Text = "FPS: --"
-
-RunService.RenderStepped:Connect(function(dt)
-    pcall(function()
-        local fps = math.floor(1 / dt)
-        FPSLabel.Text = "FPS: " .. fps
-        if fps >= 50 then
-            Dot.BackgroundColor3 = Color3.fromRGB(0, 255, 120)
-        elseif fps >= 30 then
-            Dot.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
-        else
-            Dot.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
-        end
-    end)
-end)
-
-pcall(function()
-    LP.Idled:Connect(function()
-        game:GetService("VirtualUser"):CaptureController()
-        game:GetService("VirtualUser"):ClickButton2(Vector2.new())
-    end)
-end)
-
+-- 2) Tắt bầu trời / sao / sương mù / ánh sáng nặng
 pcall(function()
     Lighting.GlobalShadows = false
-    Lighting.FogEnd = 999999
-    Lighting.Ambient = Color3.fromRGB(180, 180, 180)
-    Lighting.OutdoorAmbient = Color3.fromRGB(180, 180, 180)
-    for _, v in pairs(Lighting:GetChildren()) do
-        if v:IsA("PostEffect") or v:IsA("Atmosphere") or v:IsA("Sky") or v:IsA("Clouds") then
-            v:Destroy()
+    Lighting.FogEnd = 1e9
+    for _, obj in ipairs(Lighting:GetChildren()) do
+        if obj:IsA("Sky") or obj:IsA("Atmosphere") then
+            obj:Destroy()
         end
     end
 end)
 
+-- 3) Ẩn địa hình (Terrain) - set trong suốt thay vì xoá hẳn (xoá hẳn dễ gây lỗi vật lý/rớt xuống bản đồ)
 pcall(function()
-    local Terrain = Workspace:FindFirstChildOfClass("Terrain")
-    if Terrain then Terrain:Clear() end
+    Workspace.Terrain.WaterTransparency = 1
+    Workspace.Terrain.WaterWaveSize = 0
+    Workspace.Terrain.WaterWaveSpeed = 0
+    Workspace.Terrain:Clear() -- xoá phần địa hình dựng bằng Terrain (nếu map dùng Terrain thật)
 end)
 
-local function ProcessObject(v)
-    if not v or not v.Parent then return end
-    pcall(function()
-        if v == Workspace.CurrentCamera or v.Name == "SafePlatform" then return end
-        if LP.Character and v:IsDescendantOf(LP.Character) then return end
-
-        local model = v:FindFirstAncestorOfClass("Model")
-        if model and model:FindFirstChildOfClass("Humanoid") then
-            return
+-- 4) Xoá / tắt hiệu ứng (Particle, Beam, Trail, Fire, Smoke, Sparkles) toàn map
+local function stripEffects(root)
+    for _, obj in ipairs(root:GetDescendants()) do
+        if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam")
+        or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles")
+        or obj:IsA("Explosion") then
+            pcall(function() obj.Enabled = false end)
         end
-
-        local vName = v.Name:lower()
-        
-        if vName:find("boat") or vName:find("ship") or vName:find("sloop") or vName:find("galleon") or
-           vName:find("ghost ship") or vName:find("ghostship") or
-           vName:find("prehistoric") or vName:find("kitsune") or vName:find("frozen") or vName:find("dimension") then
-            v:Destroy()
-            return
-        end
-
-        if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Highlight") or v:IsA("Explosion") or v:IsA("Fire") or v:IsA("Smoke") or v:IsA("Sparkles") or v:IsA("Light") or v:IsA("Decal") or v:IsA("Texture") then
-            v:Destroy()
-            return
-        end
-    end)
+    end
 end
+stripEffects(Workspace)
 
-task.spawn(function()
-    local descendants = Workspace:GetDescendants()
-    local batchSize = 150
-    for i = 1, #descendants, batchSize do
-        for j = i, math.min(i + batchSize - 1, #descendants) do
-            ProcessObject(descendants[j])
-        end
-        task.wait()
+Workspace.DescendantAdded:Connect(function(obj)
+    if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam")
+    or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+        pcall(function() obj.Enabled = false end)
     end
 end)
 
-Workspace.DescendantAdded:Connect(function(v)
-    task.spawn(function()
-        ProcessObject(v)
-    end)
-end)
-
-local function CreatePlatform(char)
-    local root = char:WaitForChild("HumanoidRootPart", 10)
-    if root then
-        task.wait(0.3)
-        pcall(function()
-            local old = Workspace:FindFirstChild("SafePlatform")
-            if old then old:Destroy() end
-
-            local plat = Instance.new("Part", Workspace)
-            plat.Name = "SafePlatform"
-            plat.Size = Vector3.new(200, 1, 200)
-            plat.CFrame = root.CFrame - Vector3.new(0, 3, 0)
-            plat.Anchored = true
-            plat.Material = Enum.Material.SmoothPlastic
-            plat.Color = Color3.fromRGB(0, 0, 0)
-            plat.Transparency = 0.85
-        end)
+-- 5) Xoá texture nhân vật / mob / npc nhưng giữ nguyên model (đổi vật liệu về Plastic trơn, ẩn Decal)
+local function stripTextures(character)
+    if not character then return end
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            pcall(function()
+                part.Material = Enum.Material.Plastic
+            end)
+        elseif part:IsA("Decal") or part:IsA("Texture") then
+            pcall(function() part.Transparency = 1 end)
+        end
     end
 end
 
-if LP.Character then CreatePlatform(LP.Character) end
-LP.CharacterAdded:Connect(CreatePlatform)
+-- Áp dụng cho toàn bộ NPC/mob hiện có trong map
+for _, model in ipairs(Workspace:GetDescendants()) do
+    if model:IsA("Model") and model:FindFirstChildOfClass("Humanoid") then
+        stripTextures(model)
+    end
+end
+
+-- Tự động áp dụng cho NPC/mob mới xuất hiện (ví dụ khi farm sea event)
+Workspace.DescendantAdded:Connect(function(obj)
+    if obj:IsA("Model") and obj ~= player.Character then
+        task.wait(0.2)
+        if obj:FindFirstChildOfClass("Humanoid") then
+            stripTextures(obj)
+        end
+    end
+end)
+
+-- 6) Ẩn người chơi khác xung quanh (không ảnh hưởng gameplay, chỉ ẩn model)
+local function hideOtherPlayers()
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= player and p.Character then
+            for _, part in ipairs(p.Character:GetDescendants()) do
+                if part:IsA("BasePart") or part:IsA("Decal") then
+                    pcall(function() part.Transparency = 1 end)
+                end
+            end
+        end
+    end
+end
+hideOtherPlayers()
+
+Players.PlayerAdded:Connect(function(p)
+    p.CharacterAdded:Connect(function(char)
+        task.wait(0.5)
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") or part:IsA("Decal") then
+                pcall(function() part.Transparency = 1 end)
+            end
+        end
+    end)
+end)
+
+-- 7) Unlock FPS cap (chỉ hoạt động nếu executor hỗ trợ setfpscap, đây KHÔNG phải hack, chỉ mở giới hạn client)
+pcall(function()
+    if setfpscap then
+        setfpscap(360)
+    end
+end)
+
+-- 8) FPS Counter hiển thị góc màn hình
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "FPSCounterUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = game:GetService("CoreGui")
+
+local Label = Instance.new("TextLabel")
+Label.Size = UDim2.new(0, 120, 0, 30)
+Label.Position = UDim2.new(0, 10, 0, 10)
+Label.BackgroundTransparency = 0.4
+Label.BackgroundColor3 = Color3.new(0, 0, 0)
+Label.TextColor3 = Color3.new(0, 1, 0)
+Label.Font = Enum.Font.GothamBold
+Label.TextSize = 16
+Label.Text = "FPS: --"
+Label.Parent = ScreenGui
+
+local frames = 0
+local lastTime = tick()
+RunService.RenderStepped:Connect(function()
+    frames = frames + 1
+    local now = tick()
+    if now - lastTime >= 1 then
+        Label.Text = "FPS: " .. frames
+        frames = 0
+        lastTime = now
+    end
+end)
+
+print("[Optimizer] Đã tối ưu xong: ẩn hiệu ứng, texture, người chơi, mở khoá FPS cap, hiện FPS counter.")
