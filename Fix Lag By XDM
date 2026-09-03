@@ -1,0 +1,200 @@
+repeat task.wait() until game:IsLoaded()
+
+local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
+
+repeat task.wait(0.5) until LP.Team ~= nil and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+
+pcall(function()
+    if setfpscap then setfpscap(240) end
+end)
+
+local CoreGui = game:GetService("CoreGui")
+local FPSGui = Instance.new("ScreenGui", CoreGui)
+FPSGui.Name = "FPS_Optimized_UI"
+local FPSLabel = Instance.new("TextLabel", FPSGui)
+FPSLabel.Size = UDim2.new(0, 90, 0, 25)
+FPSLabel.Position = UDim2.new(0.88, 0, 0, 5)
+FPSLabel.BackgroundTransparency = 0.4
+FPSLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+FPSLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+FPSLabel.Font = Enum.Font.Code
+FPSLabel.TextSize = 16
+FPSLabel.TextScaled = true
+
+RunService.RenderStepped:Connect(function(dt)
+    pcall(function()
+        FPSLabel.Text = "FPS: " .. math.floor(1 / dt)
+    end)
+end)
+
+pcall(function()
+    LP.Idled:Connect(function()
+        game:GetService("VirtualUser"):CaptureController()
+        game:GetService("VirtualUser"):ClickButton2(Vector2.new())
+    end)
+end)
+
+pcall(function()
+    Lighting.GlobalShadows = false
+    Lighting.FogEnd = 999999
+    for _, v in pairs(Lighting:GetChildren()) do
+        if v:IsA("PostEffect") or v:IsA("Atmosphere") or v:IsA("Sky") or v:IsA("Clouds") then
+            v:Destroy()
+        end
+    end
+    local Sky = Instance.new("Sky", Lighting)
+    Sky.SkyboxBk, Sky.SkyboxDn, Sky.SkyboxFt, Sky.SkyboxLf, Sky.SkyboxRt, Sky.SkyboxUp = "rbxassetid://0", "rbxassetid://0", "rbxassetid://0", "rbxassetid://0", "rbxassetid://0", "rbxassetid://0"
+end)
+
+pcall(function()
+    local Terrain = Workspace:FindFirstChildOfClass("Terrain")
+    if Terrain then Terrain:Clear() end
+end)
+
+local function CleanPlayer(char)
+    if not char or char == LP.Character then return end
+    task.delay(0.3, function()
+        pcall(function()
+            for _, obj in pairs(char:GetDescendants()) do
+                if obj:IsA("BasePart") then obj.Transparency = 1 end
+                if obj:IsA("Decal") or obj:IsA("Texture") or obj:IsA("Animation") then obj:Destroy() end
+            end
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then
+                local anim = hum:FindFirstChildOfClass("Animator")
+                if anim then
+                    for _, track in ipairs(anim:GetPlayingAnimationTracks()) do
+                        track:Stop(0)
+                    end
+                end
+            end
+        end)
+    end)
+end
+
+for _, p in pairs(Players:GetPlayers()) do
+    if p ~= LP then
+        if p.Character then CleanPlayer(p.Character) end
+        p.CharacterAdded:Connect(CleanPlayer)
+    end
+end
+Players.PlayerAdded:Connect(function(p)
+    p.CharacterAdded:Connect(CleanPlayer)
+end)
+
+local function OptimizeCharacter(char)
+    if not char then return end
+    task.delay(0.2, function()
+        pcall(function()
+            for _, v in pairs(char:GetDescendants()) do
+                if v:IsA("Tool") or v:IsA("Accessory") then
+                    for _, p in pairs(v:GetDescendants()) do
+                        if p:IsA("BasePart") then p.Transparency = 1 end
+                    end
+                elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") then
+                    v:Destroy()
+                end
+            end
+        end)
+    end)
+end
+
+if LP.Character then OptimizeCharacter(LP.Character) end
+LP.CharacterAdded:Connect(OptimizeCharacter)
+
+local function ProcessObject(v)
+    if not v or not v.Parent then return end
+    pcall(function()
+        if v == Workspace.CurrentCamera or v.Name == "SafePlatform" then return end
+        if LP.Character and v:IsDescendantOf(LP.Character) then return end
+
+        if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Highlight") or v:IsA("Explosion") then
+            v:Destroy()
+            return
+        end
+
+        local model = v:FindFirstAncestorOfClass("Model")
+        if model and model:FindFirstChildOfClass("Humanoid") then
+            if model ~= LP.Character and not model:IsDescendantOf(LP.Character) then
+                for _, desc in pairs(model:GetDescendants()) do
+                    if desc:IsA("Animation") then
+                        desc:Destroy()
+                    end
+                end
+                local hum = model:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    local anim = hum:FindFirstChildOfClass("Animator")
+                    if anim then
+                        for _, track in ipairs(anim:GetPlayingAnimationTracks()) do
+                            track:Stop(0)
+                        end
+                    end
+                end
+            end
+
+            if v:IsA("BasePart") then
+                v.Material = Enum.Material.SmoothPlastic
+                v.Color = Color3.fromRGB(120, 120, 120)
+            elseif v:IsA("Texture") or v:IsA("Decal") then
+                v:Destroy()
+            end
+            return
+        end
+
+        if v:IsA("BasePart") and (v:FindFirstChildOfClass("ProximityPrompt") or v:FindFirstChildOfClass("ClickDetector")) then
+            v.Material = Enum.Material.SmoothPlastic
+            v.Transparency = 0
+            v.Color = Color3.fromRGB(0, 255, 0)
+            return
+        end
+
+        if v:IsA("BasePart") or v:IsA("MeshPart") or v:IsA("Texture") or v:IsA("Decal") then
+            v:Destroy()
+        end
+    end)
+end
+
+task.spawn(function()
+    local descendants = Workspace:GetDescendants()
+    local batchSize = 150
+    for i = 1, #descendants, batchSize do
+        for j = i, math.min(i + batchSize - 1, #descendants) do
+            ProcessObject(descendants[j])
+        end
+        task.wait()
+    end
+end)
+
+Workspace.DescendantAdded:Connect(function(v)
+    task.spawn(function()
+        ProcessObject(v)
+    end)
+end)
+
+local function CreatePlatform(char)
+    local root = char:WaitForChild("HumanoidRootPart", 10)
+    if root then
+        task.wait(0.3)
+        pcall(function()
+            local old = Workspace:FindFirstChild("SafePlatform")
+            if old then old:Destroy() end
+
+            local plat = Instance.new("Part", Workspace)
+            plat.Name = "SafePlatform"
+            plat.Size = Vector3.new(200, 1, 200)
+            plat.CFrame = root.CFrame - Vector3.new(0, 3, 0)
+            plat.Anchored = true
+            plat.Material = Enum.Material.SmoothPlastic
+            plat.Color = Color3.fromRGB(40, 40, 40)
+            plat.Transparency = 0.2
+        end)
+    end
+end
+
+if LP.Character then CreatePlatform(LP.Character) end
+LP.CharacterAdded:Connect(CreatePlatform)
+
