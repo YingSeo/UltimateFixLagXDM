@@ -8,7 +8,6 @@ local RunService = game:GetService("RunService")
 
 repeat task.wait(0.5) until LP.Team ~= nil and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
 
--- Tối ưu đồ họa xuống mức thấp nhất và mở khóa FPS tối đa
 pcall(function()
     if setfpscap then setfpscap(999) end
     local UserGameSettings = UserSettings():GetService("UserGameSettings")
@@ -17,35 +16,59 @@ pcall(function()
 end)
 
 local CoreGui = game:GetService("CoreGui")
+if CoreGui:FindFirstChild("Modern_FPS_UI") then
+    CoreGui.Modern_FPS_UI:Destroy()
+end
+
 local FPSGui = Instance.new("ScreenGui", CoreGui)
 FPSGui.Name = "Modern_FPS_UI"
 FPSGui.ResetOnSpawn = false
+FPSGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
 local MainFrame = Instance.new("Frame", FPSGui)
-MainFrame.Size = UDim2.new(0, 120, 0, 34)
-MainFrame.Position = UDim2.new(0.84, 0, 0.02, 0)
-MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-MainFrame.BackgroundTransparency = 0.25
+MainFrame.Size = UDim2.new(0, 130, 0, 38)
+MainFrame.Position = UDim2.new(0.83, 0, 0.02, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+MainFrame.BackgroundTransparency = 0.2
 MainFrame.BorderSizePixel = 0
 
 local UICorner = Instance.new("UICorner", MainFrame)
-UICorner.CornerRadius = UDim.new(0, 10)
+UICorner.CornerRadius = UDim.new(0, 12)
 
 local UIStroke = Instance.new("UIStroke", MainFrame)
-UIStroke.Color = Color3.fromRGB(50, 50, 50)
-UIStroke.Thickness = 1.5
+UIStroke.Color = Color3.fromRGB(70, 70, 90)
+UIStroke.Thickness = 1.2
+UIStroke.Transparency = 0.3
+
+local Dot = Instance.new("Frame", MainFrame)
+Dot.Size = UDim2.new(0, 8, 0, 8)
+Dot.Position = UDim2.new(0, 12, 0.5, -4)
+Dot.BackgroundColor3 = Color3.fromRGB(0, 255, 120)
+Dot.BorderSizePixel = 0
+local DotCorner = Instance.new("UICorner", Dot)
+DotCorner.CornerRadius = UDim.new(1, 0)
 
 local FPSLabel = Instance.new("TextLabel", MainFrame)
-FPSLabel.Size = UDim2.new(1, 0, 1, 0)
+FPSLabel.Size = UDim2.new(1, -28, 1, 0)
+FPSLabel.Position = UDim2.new(0, 26, 0, 0)
 FPSLabel.BackgroundTransparency = 1
-FPSLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
+FPSLabel.TextColor3 = Color3.fromRGB(240, 240, 250)
 FPSLabel.Font = Enum.Font.GothamBold
-FPSLabel.TextSize = 14
-FPSLabel.Text = "FPS: 0"
+FPSLabel.TextSize = 13
+FPSLabel.TextXAlignment = Enum.TextXAlignment.Left
+FPSLabel.Text = "FPS: --"
 
 RunService.RenderStepped:Connect(function(dt)
     pcall(function()
-        FPSLabel.Text = "FPS: " .. math.floor(1 / dt)
+        local fps = math.floor(1 / dt)
+        FPSLabel.Text = "FPS: " .. fps
+        if fps >= 50 then
+            Dot.BackgroundColor3 = Color3.fromRGB(0, 255, 120)
+        elseif fps >= 30 then
+            Dot.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
+        else
+            Dot.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
+        end
     end)
 end)
 
@@ -79,9 +102,6 @@ local function RemoveColorAndVFX(obj)
             obj:Destroy()
         elseif obj:IsA("Decal") or obj:IsA("Texture") then
             obj:Destroy()
-        elseif obj:IsA("BasePart") then
-            obj.Material = Enum.Material.SmoothPlastic
-            obj.Color = Color3.fromRGB(0, 0, 0)
         end
     end)
 end
@@ -92,15 +112,6 @@ local function CleanPlayer(char)
         pcall(function()
             for _, obj in pairs(char:GetDescendants()) do
                 RemoveColorAndVFX(obj)
-            end
-            local hum = char:FindFirstChildOfClass("Humanoid")
-            if hum then
-                local anim = hum:FindFirstChildOfClass("Animator")
-                if anim then
-                    for _, track in ipairs(anim:GetPlayingAnimationTracks()) do
-                        track:Stop(0)
-                    end
-                end
             end
         end)
     end)
@@ -116,94 +127,40 @@ Players.PlayerAdded:Connect(function(p)
     p.CharacterAdded:Connect(CleanPlayer)
 end)
 
-local function OptimizeCharacter(char)
-    if not char then return end
-    pcall(function()
-        for _, v in pairs(char:GetDescendants()) do
-            RemoveColorAndVFX(v)
-        end
-        char.DescendantAdded:Connect(function(v)
-            task.spawn(function()
-                RemoveColorAndVFX(v)
-            end)
-        end)
-    end)
-end
-
-if LP.Character then OptimizeCharacter(LP.Character) end
-LP.CharacterAdded:Connect(OptimizeCharacter)
-
 local function ProcessObject(v)
     if not v or not v.Parent then return end
     pcall(function()
         if v == Workspace.CurrentCamera or v.Name == "SafePlatform" then return end
         if LP.Character and v:IsDescendantOf(LP.Character) then return end
 
-        local vName = v.Name:lower()
-        
-        -- Xóa Thuyền & Mob ngoài biển tự động
-        if vName:find("boat") or vName:find("ship") or vName:find("sloop") or vName:find("galleon") or
-           vName:find("seabeast") or vName:find("sea beast") or vName:find("terrorshark") or 
-           vName:find("terror shark") or vName:find("shark") or vName:find("piranha") or 
-           vName:find("seamonster") or vName:find("sea monster") or vName:find("ghost ship") or vName:find("ghostship") then
-            v:Destroy()
-            return
-        end
-
-        local ancestorModel = v:FindFirstAncestorOfClass("Model")
-        if ancestorModel then
-            local aName = ancestorModel.Name:lower()
-            if aName:find("boat") or aName:find("ship") or aName:find("sloop") or aName:find("galleon") or
-               aName:find("seabeast") or aName:find("sea beast") or aName:find("terrorshark") or 
-               aName:find("terror shark") or aName:find("shark") or aName:find("piranha") or 
-               aName:find("seamonster") or aName:find("sea monster") or aName:find("ghost ship") or aName:find("ghostship") then
-                ancestorModel:Destroy()
+        local model = v:FindFirstAncestorOfClass("Model")
+        if model and model:FindFirstChildOfClass("Humanoid") then
+            local isPlayer = false
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p.Character == model then
+                    isPlayer = true
+                    break
+                end
+            end
+            if not isPlayer then
                 return
             end
         end
 
-        if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Highlight") or v:IsA("Explosion") or v:IsA("Fire") or v:IsA("Smoke") or v:IsA("Sparkles") or v:IsA("Light") then
+        local vName = v.Name:lower()
+        
+        if vName:find("boat") or vName:find("ship") or vName:find("sloop") or vName:find("galleon") or
+           vName:find("seabeast") or vName:find("sea beast") or vName:find("terrorshark") or 
+           vName:find("terror shark") or vName:find("shark") or vName:find("piranha") or 
+           vName:find("seamonster") or vName:find("sea monster") or vName:find("ghost ship") or vName:find("ghostship") or
+           vName:find("prehistoric") or vName:find("kitsune") or vName:find("frozen") or vName:find("dimension") then
             v:Destroy()
             return
         end
 
-        local model = v:FindFirstAncestorOfClass("Model")
-        if model and model:FindFirstChildOfClass("Humanoid") then
-            if model ~= LP.Character and not model:IsDescendantOf(LP.Character) then
-                for _, desc in pairs(model:GetDescendants()) do
-                    if desc:IsA("Animation") then
-                        desc:Destroy()
-                    end
-                end
-                local hum = model:FindFirstChildOfClass("Humanoid")
-                if hum then
-                    local anim = hum:FindFirstChildOfClass("Animator")
-                    if anim then
-                        for _, track in ipairs(anim:GetPlayingAnimationTracks()) do
-                            track:Stop(0)
-                        end
-                    end
-                end
-            end
-
-            if v:IsA("BasePart") then
-                v.Material = Enum.Material.SmoothPlastic
-                v.Color = Color3.fromRGB(0, 0, 0)
-            elseif v:IsA("Texture") or v:IsA("Decal") then
-                v:Destroy()
-            end
-            return
-        end
-
-        if v:IsA("BasePart") and (v:FindFirstChildOfClass("ProximityPrompt") or v:FindFirstChildOfClass("ClickDetector")) then
-            v.Material = Enum.Material.SmoothPlastic
-            v.Transparency = 0
-            v.Color = Color3.fromRGB(0, 255, 100)
-            return
-        end
-
-        if v:IsA("BasePart") or v:IsA("MeshPart") or v:IsA("Texture") or v:IsA("Decal") then
+        if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Highlight") or v:IsA("Explosion") or v:IsA("Fire") or v:IsA("Smoke") or v:IsA("Sparkles") or v:IsA("Light") or v:IsA("Decal") or v:IsA("Texture") then
             v:Destroy()
+            return
         end
     end)
 end
