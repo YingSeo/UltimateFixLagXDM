@@ -8,22 +8,40 @@ local RunService = game:GetService("RunService")
 
 repeat task.wait(0.5) until LP.Team ~= nil and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
 
+-- Tối ưu đồ họa xuống mức thấp nhất và mở khóa FPS tối đa
 pcall(function()
-    if setfpscap then setfpscap(240) end
+    if setfpscap then setfpscap(999) end
+    local UserGameSettings = UserSettings():GetService("UserGameSettings")
+    UserGameSettings.SavedQualityLevel = Enum.SavedQualityLevel.QualityLevel1
+    UserGameSettings.Shadows = false
 end)
 
 local CoreGui = game:GetService("CoreGui")
 local FPSGui = Instance.new("ScreenGui", CoreGui)
-FPSGui.Name = "FPS_Optimized_UI"
-local FPSLabel = Instance.new("TextLabel", FPSGui)
-FPSLabel.Size = UDim2.new(0, 90, 0, 25)
-FPSLabel.Position = UDim2.new(0.88, 0, 0, 5)
-FPSLabel.BackgroundTransparency = 0.4
-FPSLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-FPSLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-FPSLabel.Font = Enum.Font.Code
-FPSLabel.TextSize = 16
-FPSLabel.TextScaled = true
+FPSGui.Name = "Modern_FPS_UI"
+FPSGui.ResetOnSpawn = false
+
+local MainFrame = Instance.new("Frame", FPSGui)
+MainFrame.Size = UDim2.new(0, 120, 0, 34)
+MainFrame.Position = UDim2.new(0.84, 0, 0.02, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+MainFrame.BackgroundTransparency = 0.25
+MainFrame.BorderSizePixel = 0
+
+local UICorner = Instance.new("UICorner", MainFrame)
+UICorner.CornerRadius = UDim.new(0, 10)
+
+local UIStroke = Instance.new("UIStroke", MainFrame)
+UIStroke.Color = Color3.fromRGB(50, 50, 50)
+UIStroke.Thickness = 1.5
+
+local FPSLabel = Instance.new("TextLabel", MainFrame)
+FPSLabel.Size = UDim2.new(1, 0, 1, 0)
+FPSLabel.BackgroundTransparency = 1
+FPSLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
+FPSLabel.Font = Enum.Font.GothamBold
+FPSLabel.TextSize = 14
+FPSLabel.Text = "FPS: 0"
 
 RunService.RenderStepped:Connect(function(dt)
     pcall(function()
@@ -41,10 +59,10 @@ end)
 pcall(function()
     Lighting.GlobalShadows = false
     Lighting.FogEnd = 999999
+    Lighting.Ambient = Color3.fromRGB(0, 0, 0)
+    Lighting.OutdoorAmbient = Color3.fromRGB(0, 0, 0)
     for _, v in pairs(Lighting:GetChildren()) do
-        if v:IsA("PostEffect") or v:IsA("Atmosphere") or v:IsA("Sky") or v:IsA("Clouds") then
-            v:Destroy()
-        end
+        v:Destroy()
     end
     local Sky = Instance.new("Sky", Lighting)
     Sky.SkyboxBk, Sky.SkyboxDn, Sky.SkyboxFt, Sky.SkyboxLf, Sky.SkyboxRt, Sky.SkyboxUp = "rbxassetid://0", "rbxassetid://0", "rbxassetid://0", "rbxassetid://0", "rbxassetid://0", "rbxassetid://0"
@@ -55,13 +73,25 @@ pcall(function()
     if Terrain then Terrain:Clear() end
 end)
 
+local function RemoveColorAndVFX(obj)
+    pcall(function()
+        if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") or obj:IsA("Highlight") or obj:IsA("Explosion") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") or obj:IsA("Light") or obj:IsA("PostEffect") then
+            obj:Destroy()
+        elseif obj:IsA("Decal") or obj:IsA("Texture") then
+            obj:Destroy()
+        elseif obj:IsA("BasePart") then
+            obj.Material = Enum.Material.SmoothPlastic
+            obj.Color = Color3.fromRGB(0, 0, 0)
+        end
+    end)
+end
+
 local function CleanPlayer(char)
     if not char or char == LP.Character then return end
     task.delay(0.3, function()
         pcall(function()
             for _, obj in pairs(char:GetDescendants()) do
-                if obj:IsA("BasePart") then obj.Transparency = 1 end
-                if obj:IsA("Decal") or obj:IsA("Texture") or obj:IsA("Animation") then obj:Destroy() end
+                RemoveColorAndVFX(obj)
             end
             local hum = char:FindFirstChildOfClass("Humanoid")
             if hum then
@@ -88,17 +118,14 @@ end)
 
 local function OptimizeCharacter(char)
     if not char then return end
-    task.delay(0.2, function()
-        pcall(function()
-            for _, v in pairs(char:GetDescendants()) do
-                if v:IsA("Tool") or v:IsA("Accessory") then
-                    for _, p in pairs(v:GetDescendants()) do
-                        if p:IsA("BasePart") then p.Transparency = 1 end
-                    end
-                elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") then
-                    v:Destroy()
-                end
-            end
+    pcall(function()
+        for _, v in pairs(char:GetDescendants()) do
+            RemoveColorAndVFX(v)
+        end
+        char.DescendantAdded:Connect(function(v)
+            task.spawn(function()
+                RemoveColorAndVFX(v)
+            end)
         end)
     end)
 end
@@ -112,7 +139,30 @@ local function ProcessObject(v)
         if v == Workspace.CurrentCamera or v.Name == "SafePlatform" then return end
         if LP.Character and v:IsDescendantOf(LP.Character) then return end
 
-        if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Highlight") or v:IsA("Explosion") then
+        local vName = v.Name:lower()
+        
+        -- Xóa Thuyền & Mob ngoài biển tự động
+        if vName:find("boat") or vName:find("ship") or vName:find("sloop") or vName:find("galleon") or
+           vName:find("seabeast") or vName:find("sea beast") or vName:find("terrorshark") or 
+           vName:find("terror shark") or vName:find("shark") or vName:find("piranha") or 
+           vName:find("seamonster") or vName:find("sea monster") or vName:find("ghost ship") or vName:find("ghostship") then
+            v:Destroy()
+            return
+        end
+
+        local ancestorModel = v:FindFirstAncestorOfClass("Model")
+        if ancestorModel then
+            local aName = ancestorModel.Name:lower()
+            if aName:find("boat") or aName:find("ship") or aName:find("sloop") or aName:find("galleon") or
+               aName:find("seabeast") or aName:find("sea beast") or aName:find("terrorshark") or 
+               aName:find("terror shark") or aName:find("shark") or aName:find("piranha") or 
+               aName:find("seamonster") or aName:find("sea monster") or aName:find("ghost ship") or aName:find("ghostship") then
+                ancestorModel:Destroy()
+                return
+            end
+        end
+
+        if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Highlight") or v:IsA("Explosion") or v:IsA("Fire") or v:IsA("Smoke") or v:IsA("Sparkles") or v:IsA("Light") then
             v:Destroy()
             return
         end
@@ -138,7 +188,7 @@ local function ProcessObject(v)
 
             if v:IsA("BasePart") then
                 v.Material = Enum.Material.SmoothPlastic
-                v.Color = Color3.fromRGB(120, 120, 120)
+                v.Color = Color3.fromRGB(0, 0, 0)
             elseif v:IsA("Texture") or v:IsA("Decal") then
                 v:Destroy()
             end
@@ -148,7 +198,7 @@ local function ProcessObject(v)
         if v:IsA("BasePart") and (v:FindFirstChildOfClass("ProximityPrompt") or v:FindFirstChildOfClass("ClickDetector")) then
             v.Material = Enum.Material.SmoothPlastic
             v.Transparency = 0
-            v.Color = Color3.fromRGB(0, 255, 0)
+            v.Color = Color3.fromRGB(0, 255, 100)
             return
         end
 
@@ -189,12 +239,11 @@ local function CreatePlatform(char)
             plat.CFrame = root.CFrame - Vector3.new(0, 3, 0)
             plat.Anchored = true
             plat.Material = Enum.Material.SmoothPlastic
-            plat.Color = Color3.fromRGB(40, 40, 40)
-            plat.Transparency = 0.2
+            plat.Color = Color3.fromRGB(0, 0, 0)
+            plat.Transparency = 0.85
         end)
     end
 end
 
 if LP.Character then CreatePlatform(LP.Character) end
 LP.CharacterAdded:Connect(CreatePlatform)
-
